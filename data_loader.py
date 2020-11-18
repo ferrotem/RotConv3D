@@ -6,20 +6,15 @@ from PIL import Image
 import numpy as np
 from utils import *
 import tensorflow as tf
+import matplotlib.pyplot as plt
 #%%
 class Dataset():
-    def __init__(self, annotation, id_list):
+    def __init__(self, annotation):
         self.annotation = annotation
-        self.id_list = id_list
     
 
-    def _input_generator(self):
-        for idx in range(len(self.id_list)):
-            yield self.id_list[idx]
-    
-
-    def _single_input_generator(self, index):
-        video = self.id_list[index]
+    def _single_input_generator(self, video):
+        #video = self.id_list[index]
         selected_person = random.choice(range( len(self.annotation[video]['p_l']))) # select person from all persons
         
         label = self._label_generator(video, selected_person)
@@ -41,7 +36,7 @@ class Dataset():
             frame_list.append(imgx)
 
         frame_list = np.array(frame_list)
-        return np.reshape(frame_list,(3,224,224,60))
+        return frame_list# np.reshape(frame_list,(3,224,224,60))
     
     def _label_generator(self, video, selected_person):
         action_list = self.annotation[video]['p_l'][selected_person]['a_l']
@@ -59,19 +54,35 @@ np.random.shuffle(total_list)
 divider =round(len(annotation)*data_ratio)
 train_list, val_list = total_list[:divider], total_list[divider:]
 #%%
-train_loader = Dataset(annotation, train_list)
-val_loader = Dataset(annotation, val_list)
+data_loader = Dataset(annotation)
+# val_loader = Dataset(annotation, val_list)
 #%%
-for i in dataset._input_generator():
+for i in train_ds.take(10):
     print(i)
-    break
+    
 # %%
-train_ds = tf.data.Dataset.from_generator(train_loader._input_generator , output_types= (tf.int32))
-val_ds = tf.data.Dataset.from_generator(val_loader._input_generator , output_types= (tf.int32))
+def input_generator(id_list):
+    for idx in range(len(id_list)):
+        yield id_list[idx]
+train_ds = tf.data.Dataset.from_generator(input_generator , args= [train_list], output_types= (tf.int32))
+val_ds = tf.data.Dataset.from_generator(input_generator ,args=[val_list], output_types= (tf.int32))
 
 # autotune = tf.data.experimental.AUTOTUNE
 # train_ds = train_ds.prefetch(autotune)
 # %%
-dataset = [image,] = tf.py_function(random_rotate_image, [image], [tf.float32])
 
+
+# %%
+def read_transform(idx):
+    [frame_list, label] = tf.py_function(data_loader._single_input_generator, [idx], [tf.float32, tf.int32])
+    return frame_list, label
+
+#%%
+train_ds =train_ds.map(read_transform)
+# %%
+for [f, l] in train_ds.take(2):
+    print(f.shape)
+    print(l)
+    plt.imshow(f[0].numpy())
+    break
 # %%
