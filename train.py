@@ -70,37 +70,38 @@ def train_step(batch_clip, labels, training = True):
 
 
 #%%
-from data_loader import Dataset
+from data_loader import Data_Loader
 from utils import *
-annotation = file_reader(cfg.ANNOTATION_PATH)
-data_ratio = 0.7
-total_list = np.arange(len(annotation))
-np.random.shuffle(total_list)
-divider =round(len(annotation)*data_ratio)
-train_list, val_list = total_list[:divider], total_list[divider:]
+# annotation = file_reader(cfg.ANNOTATION_PATH)
+# data_ratio = 0.7
+# total_list = np.arange(len(annotation))
+# np.random.shuffle(total_list)
+# divider =round(len(annotation)*data_ratio)
+# train_list, val_list = total_list[:divider], total_list[divider:]
 
-dataset = Dataset(annotation)
-
-
-def input_generator(id_list):
-    for idx in range(len(id_list)):
-        yield id_list[idx]
-
-train_ds = tf.data.Dataset.from_generator(input_generator , args= [train_list], output_types= (tf.int32))
-val_ds = tf.data.Dataset.from_generator(input_generator ,args=[val_list], output_types= (tf.int32))
+# dataset = Dataset(annotation)
 
 
+# def input_generator(id_list):
+#     for idx in range(len(id_list)):
+#         yield id_list[idx]
 
-def read_transform(idx):
-    [frame_list, label] = tf.py_function(dataset._single_input_generator, [idx], [tf.float32, tf.int32])
-    return frame_list, label
+# train_ds = tf.data.Dataset.from_generator(input_generator , args= [train_list], output_types= (tf.int32))
+# val_ds = tf.data.Dataset.from_generator(input_generator ,args=[val_list], output_types= (tf.int32))
+
+ds = Data_Loader()
+train_ds, val_ds  = ds.train_ds, ds.val_ds
+train_list, val_list = ds.train_list, ds.val_ds
+# def read_transform(idx):
+#     [frame_list, label] = tf.py_function(dataset._single_input_generator, [idx], [tf.float32, tf.int32])
+#     return frame_list, label
 
 
-train_ds =train_ds.map(read_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
-autotune = tf.data.experimental.AUTOTUNE
-train_ds = train_ds.prefetch(autotune)
-val_ds = val_ds.map(read_transform,num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
-val_ds = val_ds.prefetch(autotune)
+# train_ds =train_ds.map(read_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
+# autotune = tf.data.experimental.AUTOTUNE
+# train_ds = train_ds.prefetch(autotune)
+# val_ds = val_ds.map(read_transform,num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
+# val_ds = val_ds.prefetch(autotune)
 #%%
 # for [f, l] in train_ds.take(2):
 #     print(f.shape)

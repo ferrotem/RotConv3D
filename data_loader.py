@@ -8,10 +8,7 @@ from utils import *
 import tensorflow as tf
 import matplotlib.pyplot as plt
 #%%
-class Dataset():
-    def __init__(self, annotation):
-        self.annotation = annotation
-    
+class Generator(object):
     
     def _single_input_generator(self, video):
         #video = self.id_list[index]
@@ -27,7 +24,7 @@ class Dataset():
         for frame_id in frame_id_list:
             frame = self.annotation[video]['f_l'][frame_id]
             bbox  = self.annotation[video]['p_l'][selected_person]["bb_l"][frame_id]
-            v_id = self.annotation[video]['v_id']
+            v_id =  self.annotation[video]['v_id']
             path = os.path.join(cfg.VIDEOS_DATASET_PATH, v_id, frame+'.png' )
             
             img = read_image(path)
@@ -46,88 +43,53 @@ class Dataset():
         return label
 
 
+class Data_Loader(Generator):
+    def __init__(self):
+        self.annotation = file_reader(cfg.ANNOTATION_PATH)
+        self.train_list, self.val_list = Data_Loader.split_dataset(len(self.annotation))
+        self.train_ds = self.initilize_ds(self.train_list)
+        self.val_ds = self.initilize_ds(self.val_list)
+
+
+
+    @classmethod
+    def split_dataset(cls, ds_size):
+        total_list = np.arange(ds_size)
+        np.random.shuffle(total_list)
+        divider =round(ds_size*cfg.SPLIT_RATIO)
+        return total_list[:divider], total_list[divider:]
+
+    @classmethod
+    def input_generator(cls, id_list):
+        for idx in range(len(id_list)):
+            yield id_list[idx]
+
+    
+    def read_transform(self, idx):
+        [frame_list, label] = tf.py_function(self._single_input_generator, [idx], [tf.float32, tf.int32])
+        return frame_list, label
+
+    
+    def initilize_ds(self, list_ids):
+        ds = tf.data.Dataset.from_generator(Data_Loader.input_generator , args= [list_ids], output_types= (tf.int32))
+        ds = ds.map(self.read_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
+        ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+        return ds
+
 #%%
-annotation = file_reader(cfg.ANNOTATION_PATH)
-data_ratio = 0.7
-total_list = np.arange(len(annotation))
-np.random.shuffle(total_list)
-divider =round(len(annotation)*data_ratio)
-train_list, val_list = total_list[:divider], total_list[divider:]
-#%%
-ds = Dataset(annotation)
-
-
-
-
-
-
-# %%
-def input_generator(id_list):
-    for idx in range(len(id_list)):
-        yield id_list[idx]
-train_ds = tf.data.Dataset.from_generator(input_generator , args= [train_list], output_types= (tf.int32))
-val_ds = tf.data.Dataset.from_generator(input_generator ,args=[val_list], output_types= (tf.int32))
-
-# autotune = tf.data.experimental.AUTOTUNE
-# train_ds = train_ds.prefetch(autotune)
-# %%
-
-
-# %%
-def read_transform(idx):
-    [frame_list, label] = tf.py_function(ds._single_input_generator, [idx], [tf.float32, tf.int32])
-    return frame_list, label
-
-#%%
-train_ds =train_ds.map(read_transform)
+ds = Data_Loader()
+train_ds = ds.train_ds
+val_ds =ds.val_ds
 # %%
 for [f, l] in train_ds.take(2):
     print(f.shape)
     print(l)
     plt.imshow(f[0].numpy())
     break
-# %%
-# class Construct_Data_Loader():
-#     def __init__(self):
-#         self.annotation = file_reader(cfg.ANNOTATION_PATH)
-#         self.train_list, self.val_list = self.split_dataset(len(self.annotation))
-#         self.data_loader = Dataset(self.annotation)
-#         self.train_ds = self.initilize_ds(self.train_list)
-#         self.val_ds = self.initilize_ds(self.val_list)
 
 
-
-#     @classmethod
-#     def split_dataset(self, ds_size):
-#         total_list = np.arange(ds_size)
-#         np.random.shuffle(total_list)
-#         divider =round(ds_size*cfg.SPLIT_RATIO)
-#         return total_list[:divider], total_list[divider:]
-
-#     @classmethod
-#     def input_generator(self, id_list):
-#         for idx in range(len(id_list)):
-#             yield id_list[idx]
-
-#     @classmethod
-#     def read_transform(self, idx):
-#         [frame_list, label] = tf.py_function(self.data_loader._single_input_generator, [idx], [tf.float32, tf.int32])
-#         return frame_list, label
-
-#     @classmethod
-#     def initilize_ds(self, list_ids):
-#         ds = tf.data.Dataset.from_generator(self.input_generator , args= [list_ids], output_types= (tf.int32))
-#         return ds.map(self.read_transform)
-
-#%%
-# ds = Construct_Data_Loader()
-# train_ds = ds.train_ds
-# #%%
-
-# # %%
-# for [f, l] in train_ds.take(2):
-#     print(f.shape)
-#     print(l)
-#     plt.imshow(f[0].numpy())
-#     break
-# %%
+for [f, l] in val_ds.take(2):
+    print(f.shape)
+    print(l)
+    plt.imshow(f[0].numpy())
+    

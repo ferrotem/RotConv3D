@@ -18,3 +18,9 @@ tensorboard_logs/fit/model=Dilation_2__11-27-15-50/validation/events.out.tfevent
 check.py
 conv_net_model.png
 model_Rot3D.png
+tensorboard_logs/fit/model=Dilation_2__12-03-22-57/train/events.out.tfevents.1607014671.temir-System-Product-Name.28110.11638.v2
+tensorboard_logs/fit/model=Dilation_2__12-03-22-57/validation/events.out.tfevents.1607014671.temir-System-Product-Name.28110.11646.v2
+tensorboard_logs/fit/model=Dilation_2__12-03-23-04/train/events.out.tfevents.1607015042.temir-System-Product-Name.28329.11638.v2
+tensorboard_logs/fit/model=Dilation_2__12-03-23-04/validation/events.out.tfevents.1607015042.temir-System-Product-Name.28329.11646.v2
+tensorboard_logs/fit/model=Dilation_2__12-03-23-05/train/events.out.tfevents.1607015140.temir-System-Product-Name.28475.11638.v2
+tensorboard_logs/fit/model=Dilation_2__12-03-23-05/validation/events.out.tfevents.1607015140.temir-System-Product-Name.28475.11646.v2
