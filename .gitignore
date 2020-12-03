@@ -16,3 +16,5 @@ tensorboard_logs/fit/model=Dilation_2__11-27-12-13/validation/events.out.tfevent
 tensorboard_logs/fit/model=Dilation_2__11-27-15-50/train/events.out.tfevents.1606470607.temir-System-Product-Name.6963.11638.v2
 tensorboard_logs/fit/model=Dilation_2__11-27-15-50/validation/events.out.tfevents.1606470607.temir-System-Product-Name.6963.11646.v2
 check.py
+conv_net_model.png
+model_Rot3D.png
