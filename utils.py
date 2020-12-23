@@ -1,6 +1,6 @@
 import os
 import json
-from PIL import Image
+from PIL import Image,ImageDraw
 import numpy as np
 import config as cfg
 
@@ -19,6 +19,20 @@ def imm_resize(img, width, height):
     imgx = imgn.resize((224,224), Image.ANTIALIAS)
     return np.array(imgx)/255
 
+def mask_resize(img):
+    width, height = img.size
+    imgx = img.resize((224,224), Image.ANTIALIAS)
+    return np.array(imgx, dtype=np.float32)/6
+
+def img_tranfrom_8_points(img, bbox):
+    width, height = img.size
+    polygon = [(bbox[i]*width,bbox[i+1]*height) for i in range(0,len(bbox),2)]
+    maskIm = Image.new('L', (width, height), 0)
+    ImageDraw.Draw(maskIm).polygon(polygon, outline=1, fill=1)
+    mask = np.array(maskIm)
+    single_person = np.multiply(np.array(img),mask[:,:, np.newaxis])
+    return single_person.astype(int), width, height
+
 def img_tranfrom(img, bbox):
     width, height = img.size
     T = [width, height, width, height]
@@ -27,7 +41,7 @@ def img_tranfrom(img, bbox):
     xmin, ymin, xmax, ymax = (bbox*T)
     mask[int(round(ymin)): int(round(ymax)), int(round(xmin)) : int(round(xmax))] = 1
     single_person = np.multiply(np.array(img),mask[:,:, np.newaxis])
-    return single_person.astype(int) ,width, height
+    return single_person.astype(int), width, height
 
 def read_image(img_path):
     return Image.open(img_path)

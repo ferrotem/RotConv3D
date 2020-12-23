@@ -75,8 +75,8 @@ class Model:
 
         out =  Lambda(lambda x: tf.reduce_max(x, axis=2))(out)
         # out = tf.concat([z,x,y], axis = 1)
-        out = Dense(80,activation='softmax',use_bias=True)(out) 
-        return tf.keras.Model(inputs=[Z],outputs=[out])
+        out = Dense(80,activation='sigmoid',use_bias=True)(out) 
+        return tf.keras.Model(inputs=[Z],outputs=[out, z,y,x])
 #%%
 # resnet_Z = Res3D(cfg.INPUT_SHAPE_Z).network
 # resnet_Y = Model(cfg.INPUT_SHAPE_Y).R3D

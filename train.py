@@ -1,4 +1,9 @@
 #%%
+import os
+GPU = "0"
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"]=GPU
+
 import tensorflow as tf 
 import config as cfg
 from matplotlib import pyplot as plt
@@ -19,7 +24,8 @@ if gpus:
 
 
 from network import Model
-
+from data_loader import Data_Loader
+from utils import *
 
 #%%
 model_Rot3D  = Model().network
@@ -27,16 +33,16 @@ model_Rot3D  = Model().network
 tf.keras.utils.plot_model(model_Rot3D, 'model_Rot3D.png', show_shapes=True)
 #%%
 
-import os
+#import os
 # tf.summary
-log_dir="tensorboard_logs/"
-os.makedirs(log_dir, exist_ok=True)
-summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format( cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/train/")
-val_summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format(cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/validation/")
+# log_dir="logs/"
+# os.makedirs(log_dir, exist_ok=True)
+# summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format( cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/train/")
+# val_summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format(cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/validation/")
 
 
 # loss function, optimizer
-loss_object = tf.keras.losses.CategoricalCrossentropy(from_logits = False) #BinaryCrossentropy
+loss_object = tf.keras.losses.BinaryCrossentropy(from_logits = False) #CategoricalCrossentropy
 recall_object = tf.keras.metrics.Recall()
 optimizer = tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
 checkpoint_dir = 'training_checkpoints_{}'.format(cfg.CLASSIFIER)
@@ -45,12 +51,21 @@ print("checkpoint_prefix", checkpoint_prefix)
 os.makedirs(checkpoint_prefix, exist_ok=True)
 
 #%%
+
+def unbalance_softsign_loss(labels, logits):
+    gamma = 1.25 *labels - 0.25 
+    res = 1 - tf.math.log1p( gamma*logits/(1+ tf.math.abs(logits)) )
+
+    return res 
+
 @tf.function()
-def train_step(batch_clip, labels, training = True):
+def train_step(batch_clip,batch_M,  labels, training = True):
+    batch_M_exp = tf.expand_dims(batch_M, -1)
+    batch_clip = tf.concat([batch_clip, batch_M_exp], axis=-1)
     with tf.GradientTape(persistent=False) as tape:
 
         # Calling our siamese model
-        output  = model_Rot3D([batch_clip], training=training)
+        output,  Z,Y,X  = model_Rot3D([batch_clip], training=training)
         # output = tf.squeeze(output)
         # tf.print("ouput: ", tf.math.reduce_sum(output))
         # tf.print("labels: ", labels.shape)
@@ -59,119 +74,103 @@ def train_step(batch_clip, labels, training = True):
         # BinaryCrossentropy loss from logits 
         loss = loss_object(labels, output)
         #print("we reached this point")
-        tf.print("loss: ", loss)
+        # tf.print("loss: ", loss)
         gradients = tape.gradient(loss, model_Rot3D.trainable_weights)
         optimizer.apply_gradients(zip(gradients, model_Rot3D.trainable_weights))
         recall_object.update_state(labels, output)
         recall  = recall_object.result()
-        return output, loss, recall
-
-#%%
+        return output, loss, recall, Z,Y,X 
 
 
 #%%
-from data_loader import Data_Loader
-from utils import *
-# annotation = file_reader(cfg.ANNOTATION_PATH)
-# data_ratio = 0.7
-# total_list = np.arange(len(annotation))
-# np.random.shuffle(total_list)
-# divider =round(len(annotation)*data_ratio)
-# train_list, val_list = total_list[:divider], total_list[divider:]
-
-# dataset = Dataset(annotation)
-
-
-# def input_generator(id_list):
-#     for idx in range(len(id_list)):
-#         yield id_list[idx]
-
-# train_ds = tf.data.Dataset.from_generator(input_generator , args= [train_list], output_types= (tf.int32))
-# val_ds = tf.data.Dataset.from_generator(input_generator ,args=[val_list], output_types= (tf.int32))
-
 ds = Data_Loader()
 train_ds, val_ds  = ds.train_ds, ds.val_ds
-train_list, val_list = ds.train_list, ds.val_ds
-# def read_transform(idx):
-#     [frame_list, label] = tf.py_function(dataset._single_input_generator, [idx], [tf.float32, tf.int32])
-#     return frame_list, label
+train_list, val_list = ds.train_list, ds.val_list
 
-
-# train_ds =train_ds.map(read_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
-# autotune = tf.data.experimental.AUTOTUNE
-# train_ds = train_ds.prefetch(autotune)
-# val_ds = val_ds.map(read_transform,num_parallel_calls=tf.data.experimental.AUTOTUNE).cache()
-# val_ds = val_ds.prefetch(autotune)
-#%%
-# for [f, l] in train_ds.take(2):
-#     print(f.shape)
-#     print(l)
-#     plt.imshow(f[0].numpy())
-#     break
 #%%
 def fit(epochs):
     step = 0
     pbar_epoch = tqdm(total = epochs, desc = "epochs")
+    # np_out = np.zeros((1,80))
+    # Z_out = np.zeros((1,139968))
+    # Y_out = np.zeros((1,139968))
+    # X_out = np.zeros((1,139968))
+    label_out = np.zeros((1,80))
     for epoch in range(epochs):
         print("Epoch: ", epoch)
         pbar_steps = tqdm(total = len(train_list), desc =" train_steps")
-
-        for _, (batch_X, batch_Y) in train_ds.batch(1).enumerate():
-            output, train_loss, train_recall = train_step(batch_X, batch_Y, True)
+        
+        for _, (batch_X, batch_M, batch_Y) in train_ds.batch(1).enumerate():
+            # output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, True)
             # print("we reached this point")
-            output, labels = output.numpy(), batch_Y.numpy()
-            # print("output shape: ", output.shape)
-            top_5 = output[0].argsort()[-5:][::-1]
-            count = 0
-            label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
-            # print("labelset:", label_set)
-            # print("top5 set:", top_5)
-            for i in range(len(label_set)):
-                if label_set[i] in top_5:
-                    count+=1
-            accuracy = (count/5)
+            # output, labels = output.numpy(), batch_Y.numpy()
+            labels = batch_Y.numpy()
+            # # print("output shape: ", output.shape)
+            # top_5 = output[0].argsort()[-5:][::-1]
+            # count = 0
+            # label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
+            # # print("labelset:", label_set)
+            # # print("top5 set:", top_5)
+            # for i in range(len(label_set)):
+            #     if label_set[i] in top_5:
+            #         count+=1
+            # accuracy = (count/5)
 
 
-            if step%30==0:
-                print("accuracy: ", accuracy)
-                print('loss: ', train_loss.numpy() )
-                print('recall: ', train_recall.numpy())
-                with summary_writer.as_default():
-                    tf.summary.experimental.set_step(step)
-                    tf.summary.scalar('loss', np.sum(train_loss.numpy()), step=step)  
-                    tf.summary.scalar('recall', train_recall, step=step)
-                    tf.summary.scalar('accuracy_top_5', accuracy, step=step)
-                    tf.summary.histogram('output', output)
+            if step%25==0:
+                # print("accuracy: ", accuracy)
+                # print('loss: ', train_loss.numpy() )
+                # print('recall: ', train_recall.numpy())
+                # with summary_writer.as_default():
+                #     tf.summary.experimental.set_step(step)
+                #     tf.summary.scalar('loss', np.sum(train_loss.numpy()), step=step)  
+                #     tf.summary.scalar('recall', train_recall, step=step)
+                #     tf.summary.scalar('accuracy_top_5', accuracy, step=step)
+                #     # tf.summary.histogram('output', output)
+                
+                # np_out = np.concatenate([np_out, output], axis=0)
+                # print("np_out_shape:", np_out.shape)
+                # Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
+                # Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
+                # X_out = np.concatenate([X_out, X.numpy()], axis=0)
+                label_out = np.concatenate([label_out, labels], axis=0)
+                print("label_out:", label_out.shape)
                 
             step+=1
             pbar_steps.update(1)
         pbar_steps.close()
-        val_accuracy = []
-        val_recall = []
-        pbar_val = tqdm(total = len(val_list), desc =" val steps")
-        for _, (batch_X, batch_Y) in val_ds.batch(1).enumerate():
-            output, train_loss, train_recall = train_step(batch_X, batch_Y, False)
-            # print("we reached this point")
-            output, labels = output.numpy(), batch_Y.numpy()
-            # print("output shape: ", output.shape)
-            top_5 = output[0].argsort()[-5:][::-1]
-            count = 0
-            label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
-            # print("labelset:", label_set)
-            # print("top5 set:", top_5)
-            for i in range(len(label_set)):
-                if label_set[i] in top_5:
-                    count+=1
-            accuracy = (count/5)
-            val_accuracy.append(accuracy)
-            val_recall.append(train_recall.numpy())
-            pbar_val.update(1)
+        # val_accuracy = []
+        # val_recall = []
+        # pbar_val = tqdm(total = len(val_list), desc =" val steps")
+        # for _, (batch_X, batch_M, batch_Y) in val_ds.batch(1).enumerate():
+        #     output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, False)
+        #     # print("we reached this point")
+        #     output, labels = output.numpy(), batch_Y.numpy()
+        #     # print("output shape: ", output.shape)
+        #     top_5 = output[0].argsort()[-5:][::-1]
+        #     count = 0
+        #     label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
+        #     # print("labelset:", label_set)
+        #     # print("top5 set:", top_5)
+        #     for i in range(len(label_set)):
+        #         if label_set[i] in top_5:
+        #             count+=1
+        #     accuracy = (count/5)
+        #     val_accuracy.append(accuracy)
+        #     val_recall.append(train_recall.numpy())
+        #     pbar_val.update(1)
 
-        with val_summary_writer.as_default():
-            tf.summary.scalar('recall', np.mean(val_recall), step=step)  
-            tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
-        pbar_val.close()
+        # with val_summary_writer.as_default():
+        #     tf.summary.scalar('recall', np.mean(val_recall), step=step)  
+        #     tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
+        # pbar_val.close()
         pbar_epoch.update(1)
+        if epoch%2==0:
+            # np.save(f"./results/output/np_out_{epoch}.npy",np_out)
+            # np.save(f"./results/Z/Z_{epoch}.npy",Z_out)
+            # np.save(f"./results/Y/Y_{epoch}.npy",Y_out)
+            # np.save(f"./results/X/X_{epoch}.npy",X_out)
+            np.save(f"./results/labels/labels_{epoch}.npy",label_out)
 #%%
 from tqdm import tqdm
 fit(100)
