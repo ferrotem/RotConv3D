@@ -22,7 +22,7 @@ if gpus:
     # Memory growth must be set before GPUs have been initialized
     print(e)
 
-
+# tf.config.threading.set_inter_op_parallelism_threads(20)
 from network import Model
 from data_loader import Data_Loader
 from utils import *
@@ -33,12 +33,12 @@ model_Rot3D  = Model().network
 tf.keras.utils.plot_model(model_Rot3D, 'model_Rot3D.png', show_shapes=True)
 #%%
 
-#import os
-# tf.summary
-# log_dir="logs/"
-# os.makedirs(log_dir, exist_ok=True)
-# summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format( cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/train/")
-# val_summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format(cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/validation/")
+import os
+tf.summary
+log_dir="logs/"
+os.makedirs(log_dir, exist_ok=True)
+summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format( cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/train/")
+val_summary_writer = tf.summary.create_file_writer(log_dir + "fit/" + 'model={}__'.format(cfg.CLASSIFIER) + datetime.datetime.now().strftime("%m-%d-%H-%M")+"/validation/")
 
 
 # loss function, optimizer
@@ -91,21 +91,21 @@ train_list, val_list = ds.train_list, ds.val_list
 def fit(epochs):
     step = 0
     pbar_epoch = tqdm(total = epochs, desc = "epochs")
-    # np_out = np.zeros((1,80))
-    # Z_out = np.zeros((1,139968))
-    # Y_out = np.zeros((1,139968))
-    # X_out = np.zeros((1,139968))
+    np_out = np.zeros((1,80))
+    Z_out = np.zeros((1,1213056))
+    Y_out = np.zeros((1,1213056))
+    X_out = np.zeros((1,1213056))
     label_out = np.zeros((1,80))
     for epoch in range(epochs):
         print("Epoch: ", epoch)
         pbar_steps = tqdm(total = len(train_list), desc =" train_steps")
         
         for _, (batch_X, batch_M, batch_Y) in train_ds.batch(1).enumerate():
-            # output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, True)
+            output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, True)
             # print("we reached this point")
-            # output, labels = output.numpy(), batch_Y.numpy()
-            labels = batch_Y.numpy()
-            # # print("output shape: ", output.shape)
+            output, labels = output.numpy(), batch_Y.numpy()
+            # labels = batch_Y.numpy()
+            # print("output shape: ", output.shape)
             # top_5 = output[0].argsort()[-5:][::-1]
             # count = 0
             # label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
@@ -115,62 +115,81 @@ def fit(epochs):
             #     if label_set[i] in top_5:
             #         count+=1
             # accuracy = (count/5)
+            
 
 
-            if step%25==0:
-                # print("accuracy: ", accuracy)
-                # print('loss: ', train_loss.numpy() )
-                # print('recall: ', train_recall.numpy())
-                # with summary_writer.as_default():
-                #     tf.summary.experimental.set_step(step)
-                #     tf.summary.scalar('loss', np.sum(train_loss.numpy()), step=step)  
-                #     tf.summary.scalar('recall', train_recall, step=step)
-                #     tf.summary.scalar('accuracy_top_5', accuracy, step=step)
-                #     # tf.summary.histogram('output', output)
+            if step%100==0:
+                top_k = len(np.where(labels[1]==1))
+                top5_out = output[0].argsort()[-top_k:][::-1]
+                top5_labels = labels[0].argsort()[-top_k:][::-1]
+                count = 0
+                for el in top5_out:
+                    if el in top5_labels:
+                        count+=1
+                accuracy = (count/top_k)
+                
+                print("accuracy: ", accuracy)
+                print('loss: ', train_loss.numpy() )
+                print('recall: ', train_recall.numpy())
+                with summary_writer.as_default():
+                    tf.summary.experimental.set_step(step)
+                    tf.summary.scalar('loss', np.sum(train_loss.numpy()), step=step)  
+                    tf.summary.scalar('recall', train_recall, step=step)
+                    tf.summary.scalar('accuracy_top_5', accuracy, step=step)
+                    # tf.summary.histogram('output', output)
                 
                 # np_out = np.concatenate([np_out, output], axis=0)
-                # print("np_out_shape:", np_out.shape)
+                # # print("np_out_shape:", np_out.shape)
                 # Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
                 # Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
                 # X_out = np.concatenate([X_out, X.numpy()], axis=0)
-                label_out = np.concatenate([label_out, labels], axis=0)
-                print("label_out:", label_out.shape)
+                # label_out = np.concatenate([label_out, labels], axis=0)
+                # print("label_out:", label_out.shape)
                 
             step+=1
             pbar_steps.update(1)
         pbar_steps.close()
-        # val_accuracy = []
-        # val_recall = []
-        # pbar_val = tqdm(total = len(val_list), desc =" val steps")
-        # for _, (batch_X, batch_M, batch_Y) in val_ds.batch(1).enumerate():
-        #     output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, False)
-        #     # print("we reached this point")
-        #     output, labels = output.numpy(), batch_Y.numpy()
-        #     # print("output shape: ", output.shape)
-        #     top_5 = output[0].argsort()[-5:][::-1]
-        #     count = 0
-        #     label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
-        #     # print("labelset:", label_set)
-        #     # print("top5 set:", top_5)
-        #     for i in range(len(label_set)):
-        #         if label_set[i] in top_5:
-        #             count+=1
-        #     accuracy = (count/5)
-        #     val_accuracy.append(accuracy)
-        #     val_recall.append(train_recall.numpy())
-        #     pbar_val.update(1)
+        val_accuracy = []
+        val_recall = []
+        pbar_val = tqdm(total = len(val_list), desc =" val steps")
+        for _, (batch_X, batch_M, batch_Y) in val_ds.batch(1).enumerate():
+            output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, False)
+            # print("we reached this point")
+            output, labels = output.numpy(), batch_Y.numpy()
+            # print("output shape: ", output.shape)
+            # top_5 = output[0].argsort()[-5:][::-1]
+            # count = 0
+            # label_set = (labels[0] == 1).nonzero()#np.where(labels.cpu().numpy() == 1).
+            # # print("labelset:", label_set)
+            # # print("top5 set:", top_5)
+            # for i in range(len(label_set)):
+            #     if label_set[i] in top_5:
+            #         count+=1
+            # accuracy = (count/5)
+            
+            top_k = len(np.where(labels[1]==1))
+            top5_out = output[0].argsort()[-top_k:][::-1]
+            top5_labels = labels[0].argsort()[-top_k:][::-1]
+            count = 0
+            for el in top5_out:
+                if el in top5_labels:
+                    count+=1
+            accuracy = (count/top_k)
+            val_accuracy.append(accuracy)
+            val_recall.append(train_recall.numpy())
+            pbar_val.update(1)
 
-        # with val_summary_writer.as_default():
-        #     tf.summary.scalar('recall', np.mean(val_recall), step=step)  
-        #     tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
-        # pbar_val.close()
+        with val_summary_writer.as_default():
+            tf.summary.scalar('recall', np.mean(val_recall), step=step)  
+            tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
+        pbar_val.close()
         pbar_epoch.update(1)
-        if epoch%2==0:
-            # np.save(f"./results/output/np_out_{epoch}.npy",np_out)
-            # np.save(f"./results/Z/Z_{epoch}.npy",Z_out)
-            # np.save(f"./results/Y/Y_{epoch}.npy",Y_out)
-            # np.save(f"./results/X/X_{epoch}.npy",X_out)
-            np.save(f"./results/labels/labels_{epoch}.npy",label_out)
+        # if epoch%2==0:
+        #     np.save(f"./results/output/np_out_{epoch}.npy",np_out)
+        #     np.save(f"./results/Z/Z_{epoch}.npy",Z_out)
+        #     np.save(f"./results/Y/Y_{epoch}.npy",Y_out)
+        #     np.save(f"./results/X/X_{epoch}.npy",X_out)
+        #     np.save(f"./results/labels/labels_{epoch}.npy",label_out)
 #%%
 from tqdm import tqdm
 fit(100)

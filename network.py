@@ -4,6 +4,21 @@ from tensorflow.keras.layers import Lambda, BatchNormalization, Conv3D, Dropout,
 from tensorflow.keras.layers import GlobalAveragePooling3D ,Dense, Flatten,  MaxPooling3D, Activation
 import config as cfg
 
+class Linear(tf.keras.layers.Layer):
+    def __init__(self, units=1, input_dim=1213056):#139968
+        super(Linear, self).__init__()
+        w_init = tf.random_normal_initializer( mean=1.0, stddev=0.05, seed=1313)
+        self.w = tf.Variable(
+            initial_value=w_init(shape=(units, input_dim), dtype="float32"),
+            trainable=True,
+        )
+        # b_init = tf.zeros_initializer()
+        # self.b = tf.Variable(
+        #     initial_value=b_init(shape=(units,), dtype="float32"), trainable=True
+        # )
+
+    def call(self, inputs):
+        return tf.math.multiply(inputs, self.w)#tf.matmul(inputs, self.w) + self.b
 
 
 class Model:
@@ -41,10 +56,10 @@ class Model:
             x = self.res_net_block(x, 32, 3)
 
         # print ("x shape : ", x.shape)
-        outputs = MaxPooling3D((2,2,2))(x)
+        # outputs = MaxPooling3D((2,2,2))(x)
         # outputs = Flatten()(x)
         #outputs = Dense(80,activation='relu',use_bias=False)(x)  
-        return tf.keras.Model(inputs, outputs, name= net_name)
+        return tf.keras.Model(inputs, x, name= net_name)
 
 
     def Rot3D(self):
@@ -70,10 +85,16 @@ class Model:
         y = Flatten()(reverse_Y)
         x = Flatten()(reverse_X)
 
-        out = tf.stack([z,y,x], axis=2)
+        z = Linear()(z)
+        y = Linear()(y)
+        x = Linear()(x)     
 
-
-        out =  Lambda(lambda x: tf.reduce_max(x, axis=2))(out)
+        out = tf.concat([z,x,y], axis = 1, name="Concat")
+        out = tf.nn.elu(out, name="ELU")
+        
+        
+        # out = tf.stack([z,y,x], axis=2) 
+        # out =  Lambda(lambda x: tf.reduce_max(x, axis=2))(out)
         # out = tf.concat([z,x,y], axis = 1)
         out = Dense(80,activation='sigmoid',use_bias=True)(out) 
         return tf.keras.Model(inputs=[Z],outputs=[out, z,y,x])

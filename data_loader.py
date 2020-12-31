@@ -126,7 +126,7 @@ class Data_Loader(Generator):
     def initilize_ds(self, list_ids):
         ds = tf.data.Dataset.from_generator(Data_Loader.input_generator , args= [list_ids], output_types= (tf.int32))
         ds = ds.map(self.read_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+        # ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
         return ds
 
 #%%
