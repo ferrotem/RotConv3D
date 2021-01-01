@@ -32,7 +32,8 @@ model_Rot3D  = Model().network
 # %%
 tf.keras.utils.plot_model(model_Rot3D, 'model_Rot3D.png', show_shapes=True)
 #%%
-
+resnet = Model().resnet
+tf.keras.utils.plot_model(resnet, 'model_resnet.png', show_shapes=True)
 import os
 tf.summary
 log_dir="logs/"
@@ -119,7 +120,7 @@ def fit(epochs):
 
 
             if step%100==0:
-                top_k = len(np.where(labels[1]==1))
+                top_k = len(np.where(labels[0]==1))
                 top5_out = output[0].argsort()[-top_k:][::-1]
                 top5_labels = labels[0].argsort()[-top_k:][::-1]
                 count = 0
@@ -127,7 +128,7 @@ def fit(epochs):
                     if el in top5_labels:
                         count+=1
                 accuracy = (count/top_k)
-                
+                print("top_k: ", top_k, top5_out,top5_labels )
                 print("accuracy: ", accuracy)
                 print('loss: ', train_loss.numpy() )
                 print('recall: ', train_recall.numpy())
@@ -167,7 +168,7 @@ def fit(epochs):
             #         count+=1
             # accuracy = (count/5)
             
-            top_k = len(np.where(labels[1]==1))
+            top_k = len(np.where(labels[0]==1))
             top5_out = output[0].argsort()[-top_k:][::-1]
             top5_labels = labels[0].argsort()[-top_k:][::-1]
             count = 0

@@ -1,31 +1,31 @@
 #%%
 import tensorflow as tf 
 from tensorflow.keras.layers import Lambda, BatchNormalization, Conv3D, Dropout, Add, Input
-from tensorflow.keras.layers import GlobalAveragePooling3D ,Dense, Flatten,  MaxPooling3D, Activation
+from tensorflow.keras.layers import GlobalAveragePooling3D ,Dense, Flatten,  MaxPooling3D, Activation, Dropout
 import config as cfg
 
 class Linear(tf.keras.layers.Layer):
-    def __init__(self, units=1, input_dim=1213056):#139968
+    def __init__(self, units=3, input_dim=1213056):#139968
         super(Linear, self).__init__()
-        w_init = tf.random_normal_initializer( mean=1.0, stddev=0.05, seed=1313)
+        w_init = tf.random_normal_initializer( mean=0.0, stddev=0.05, seed=1313)
         self.w = tf.Variable(
             initial_value=w_init(shape=(units, input_dim), dtype="float32"),
             trainable=True,
         )
-        # b_init = tf.zeros_initializer()
-        # self.b = tf.Variable(
-        #     initial_value=b_init(shape=(units,), dtype="float32"), trainable=True
-        # )
+        b_init = tf.zeros_initializer()
+        self.b = tf.Variable(
+            initial_value=b_init(shape=(units,input_dim), dtype="float32"), trainable=True
+        )
 
     def call(self, inputs):
-        return tf.math.multiply(inputs, self.w)#tf.matmul(inputs, self.w) + self.b
+        return tf.math.multiply(inputs, self.w)+ self.b #tf.matmul(inputs, self.w) 
 
 
 class Model:
 
     def __init__(self):
         self.network =  self.Rot3D()
-
+        self.resnet = self.resnet_3D_model(cfg.INPUT_SHAPE_Z, "just_res")
 
 
     def res_net_block(self, input_data, filters, conv_size):
@@ -38,6 +38,7 @@ class Model:
         x = Conv3D(filters, conv_size, activation=None, padding='same')(x)
         x = BatchNormalization()(x)
         x = Add()([x, input_data])
+        x = Dropout(rate=0.3)(x)
         x = Activation('relu')(x)
         # print("x shape : ", x.shape)    
         return x    
@@ -85,11 +86,16 @@ class Model:
         y = Flatten()(reverse_Y)
         x = Flatten()(reverse_X)
 
-        z = Linear()(z)
-        y = Linear()(y)
-        x = Linear()(x)     
+        out = tf.stack([z,y,x], axis=1) 
+        print("out_shape, ", out.shape)
+        
+        out = Linear()(out)
+        
+        # z = Linear()(z)
+        # y = Linear()(y)
+        # x = Linear()(x)     
 
-        out = tf.concat([z,x,y], axis = 1, name="Concat")
+        # out = tf.concat([z,x,y], axis = 1, name="Concat")
         out = tf.nn.elu(out, name="ELU")
         
         
