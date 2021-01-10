@@ -5,7 +5,7 @@ from tensorflow.keras.layers import GlobalAveragePooling3D ,Dense, Flatten,  Max
 import config as cfg
 
 class Linear(tf.keras.layers.Layer):
-    def __init__(self, units=3, input_dim=1213056):#139968
+    def __init__(self, units=3, input_dim=3136):#139968 #1213056
         super(Linear, self).__init__()
         w_init = tf.random_normal_initializer( mean=0.0, stddev=0.05, seed=1313)
         self.w = tf.Variable(
@@ -31,12 +31,18 @@ class Model:
     def res_net_block(self, input_data, filters, conv_size):
         if cfg.DILATION:
             x = Conv3D(filters, conv_size, activation='relu', padding='same', dilation_rate=[2,2,2])(input_data)
-        x = Conv3D(filters, conv_size, activation='relu', padding='same')(input_data)
-        x = BatchNormalization()(x)
-        if cfg.DILATION:
-             x = Conv3D(filters, conv_size, activation=None, padding='same', dilation_rate=[2,2,2])(x)
-        x = Conv3D(filters, conv_size, activation=None, padding='same')(x)
-        x = BatchNormalization()(x)
+            x = BatchNormalization()(x)
+            x = Conv3D(filters, conv_size, activation=None, padding='same', dilation_rate=[2,2,2])(x)
+            
+        else:
+            x = Conv3D(filters, conv_size, activation='relu', padding='same')(input_data)
+            x = BatchNormalization()(x)
+            x = Conv3D(filters, conv_size, activation=None, padding='same')(x)     
+
+        # downsampling with stride 2
+        x = Conv3D(filters, conv_size, strides=2, activation=None, padding='same')(x)
+        input_data = Conv3D(filters, conv_size, strides=2, activation=None, padding='same')(input_data)
+
         x = Add()([x, input_data])
         x = Dropout(rate=0.3)(x)
         x = Activation('relu')(x)
@@ -47,9 +53,9 @@ class Model:
         inputs = Input(input_shape)
         x = Conv3D(32, 3, activation='relu')(inputs) # 1st dimention of filter is for order of frames
         # print ("x shape : ", x.shape)
-        x = MaxPooling3D((2,2,2))(x)
-        x = Conv3D(32, 3, activation='relu')(x) # 1st dimention of filter is for order of frames
-        x = MaxPooling3D((2,2,2))(x)
+        # x = MaxPooling3D((2,2,2))(x)
+        # x = Conv3D(32, 3, activation='relu')(x) # 1st dimention of filter is for order of frames
+        # x = MaxPooling3D((2,2,2))(x)
         # print ("x shape : ", x.shape)
         # # 
 
@@ -87,7 +93,7 @@ class Model:
         x = Flatten()(reverse_X)
 
         out = tf.stack([z,y,x], axis=1) 
-        print("out_shape, ", out.shape)
+        print("stack_shape, ", out.shape)
         
         out = Linear()(out)
         
@@ -96,8 +102,9 @@ class Model:
         # x = Linear()(x)     
 
         # out = tf.concat([z,x,y], axis = 1, name="Concat")
-        out = tf.nn.elu(out, name="ELU")
-        
+        # out = tf.nn.elu(out, name="ELU")
+        out = Flatten()(out)
+        out = Dense(2048, activation = 'elu')(out)
         
         # out = tf.stack([z,y,x], axis=2) 
         # out =  Lambda(lambda x: tf.reduce_max(x, axis=2))(out)
