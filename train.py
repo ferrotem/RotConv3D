@@ -66,7 +66,7 @@ def train_step(batch_clip,batch_M,  labels, training = True):
     with tf.GradientTape(persistent=False) as tape:
 
         # Calling our siamese model
-        output,  Z,Y,X  = model_Rot3D([batch_clip], training=training)
+        output,  Z,Y,X, d_out  = model_Rot3D([batch_clip], training=training)
         # output = tf.squeeze(output)
         # tf.print("ouput: ", tf.math.reduce_sum(output))
         # tf.print("labels: ", labels.shape)
@@ -80,7 +80,7 @@ def train_step(batch_clip,batch_M,  labels, training = True):
         optimizer.apply_gradients(zip(gradients, model_Rot3D.trainable_weights))
         recall_object.update_state(labels, output)
         recall  = recall_object.result()
-        return output, loss, recall, Z,Y,X 
+        return output, loss, recall, Z,Y,X,d_out 
 
 
 #%%
@@ -93,16 +93,17 @@ def fit(epochs):
     step = 0
     pbar_epoch = tqdm(total = epochs, desc = "epochs")
     np_out = np.zeros((1,80))
-    Z_out = np.zeros((1,1213056))
-    Y_out = np.zeros((1,1213056))
-    X_out = np.zeros((1,1213056))
+    Z_out = np.zeros((1,3136))
+    Y_out = np.zeros((1,3136))
+    X_out = np.zeros((1,3136))
+    dense_out = np.zeros((1,2048))
     label_out = np.zeros((1,80))
     for epoch in range(epochs):
         print("Epoch: ", epoch)
         pbar_steps = tqdm(total = len(train_list), desc =" train_steps")
         
         for _, (batch_X, batch_M, batch_Y) in train_ds.batch(1).enumerate():
-            output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, True)
+            output, train_loss, train_recall, Z,Y,X ,d_out = train_step(batch_X, batch_M, batch_Y, True)
             # print("we reached this point")
             output, labels = output.numpy(), batch_Y.numpy()
             # labels = batch_Y.numpy()
@@ -139,12 +140,14 @@ def fit(epochs):
                     tf.summary.scalar('accuracy_top_5', accuracy, step=step)
                     # tf.summary.histogram('output', output)
                 
-                # np_out = np.concatenate([np_out, output], axis=0)
+                np_out = np.concatenate([np_out, output], axis=0)
                 # # print("np_out_shape:", np_out.shape)
-                # Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
-                # Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
-                # X_out = np.concatenate([X_out, X.numpy()], axis=0)
-                # label_out = np.concatenate([label_out, labels], axis=0)
+                Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
+                Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
+                X_out = np.concatenate([X_out, X.numpy()], axis=0)
+                label_out = np.concatenate([label_out, labels], axis=0)
+                dense_out = np.concatenate([dense_out, d_out.numpy()], axis=0)
+
                 # print("label_out:", label_out.shape)
                 
             step+=1
@@ -154,7 +157,7 @@ def fit(epochs):
         val_recall = []
         pbar_val = tqdm(total = len(val_list), desc =" val steps")
         for _, (batch_X, batch_M, batch_Y) in val_ds.batch(1).enumerate():
-            output, train_loss, train_recall, Z,Y,X  = train_step(batch_X, batch_M, batch_Y, False)
+            output, train_loss, train_recall, Z,Y,X,d_out  = train_step(batch_X, batch_M, batch_Y, False)
             # print("we reached this point")
             output, labels = output.numpy(), batch_Y.numpy()
             # print("output shape: ", output.shape)
@@ -185,12 +188,13 @@ def fit(epochs):
             tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
         pbar_val.close()
         pbar_epoch.update(1)
-        # if epoch%2==0:
-        #     np.save(f"./results/output/np_out_{epoch}.npy",np_out)
-        #     np.save(f"./results/Z/Z_{epoch}.npy",Z_out)
-        #     np.save(f"./results/Y/Y_{epoch}.npy",Y_out)
-        #     np.save(f"./results/X/X_{epoch}.npy",X_out)
-        #     np.save(f"./results/labels/labels_{epoch}.npy",label_out)
+        if epoch%10==0:
+            np.save(f"./results/output/np_out_{epoch}.npy",np_out)
+            np.save(f"./results/output/Z_{epoch}.npy",Z_out)
+            np.save(f"./results/output/Y_{epoch}.npy",Y_out)
+            np.save(f"./results/output/X_{epoch}.npy",X_out)
+            np.save(f"./results/output/labels_{epoch}.npy",label_out)
+            np.save(f"./results/output/dense_{epoch}.npy",dense_out)
 #%%
 from tqdm import tqdm
 fit(100)

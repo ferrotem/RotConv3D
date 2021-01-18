@@ -104,13 +104,13 @@ class Model:
         # out = tf.concat([z,x,y], axis = 1, name="Concat")
         # out = tf.nn.elu(out, name="ELU")
         out = Flatten()(out)
-        out = Dense(2048, activation = 'elu')(out)
+        d_out = Dense(2048, activation = 'elu')(out)
         
         # out = tf.stack([z,y,x], axis=2) 
         # out =  Lambda(lambda x: tf.reduce_max(x, axis=2))(out)
         # out = tf.concat([z,x,y], axis = 1)
-        out = Dense(80,activation='sigmoid',use_bias=True)(out) 
-        return tf.keras.Model(inputs=[Z],outputs=[out, z,y,x])
+        out = Dense(80,activation='sigmoid',use_bias=True)(d_out) 
+        return tf.keras.Model(inputs=[Z],outputs=[out, z,y,x, d_out])
 #%%
 # resnet_Z = Res3D(cfg.INPUT_SHAPE_Z).network
 # resnet_Y = Model(cfg.INPUT_SHAPE_Y).R3D
