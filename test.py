@@ -1,6 +1,6 @@
 #%%
 import os
-GPU = "0,1,2"
+GPU = "3"
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]=GPU
 
@@ -23,18 +23,13 @@ if gpus:
     print(e)
 
 # tf.config.threading.set_inter_op_parallelism_threads(20)
-from network import Model
+from network_test import Model
 from data_loader import Data_Loader
 from utils import *
 
+
 #%%
 
-  = Model().network
-# %%
-tf.keras.utils.plot_model(model_Rot3D, 'model_Rot3D.png', show_shapes=True)
-#%%
-resnet = Model().resnet
-tf.keras.utils.plot_model(resnet, 'model_resnet.png', show_shapes=True)
 import os
 tf.summary
 log_dir="logs/"
@@ -51,6 +46,14 @@ checkpoint_dir = 'training_checkpoints_{}'.format(cfg.CLASSIFIER)
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 print("checkpoint_prefix", checkpoint_prefix)
 os.makedirs(checkpoint_prefix, exist_ok=True)
+latest = tf.train.latest_checkpoint(checkpoint_dir)
+print("latest: ", latest)
+model_Rot3D  = Model().network
+checkpoint = tf.train.Checkpoint(model = model_Rot3D)
+checkpoint.restore(checkpoint_dir + '/ckpt-8')
+
+# model_Rot3D.load_weights(latest)
+
 
 #%%
 
@@ -81,7 +84,7 @@ def train_step(batch_clip,batch_M,  labels, training = True):
         optimizer.apply_gradients(zip(gradients, model_Rot3D.trainable_weights))
         recall_object.update_state(labels, output)
         recall  = recall_object.result()
-        return output, loss, recall, Z,Y,X,d_out 
+        return output, loss, recall, Z,Y,X,d_out,  batch_clip
 
 
 #%%
@@ -94,9 +97,9 @@ def fit(epochs):
     step = 0
     pbar_epoch = tqdm(total = epochs, desc = "epochs")
     np_out = np.zeros((1,80))
-    Z_out = np.zeros((1,1024))
-    Y_out = np.zeros((1,1024))
-    X_out = np.zeros((1,1024))
+    Z_out = np.zeros((6,54,54,32))
+    Y_out = np.zeros((6,54,54,32))
+    X_out = np.zeros((6,54,54,32))
     dense_out = np.zeros((1,2048))
     label_out = np.zeros((1,80))
     for epoch in range(epochs):
@@ -104,7 +107,7 @@ def fit(epochs):
         pbar_steps = tqdm(total = len(train_list), desc =" train_steps")
         
         for _, (batch_X, batch_M, batch_Y) in train_ds.batch(1).enumerate():
-            output, train_loss, train_recall, Z,Y,X ,d_out = train_step(batch_X, batch_M, batch_Y, True)
+            output, train_loss, train_recall, Z,Y,X ,d_out,batch_clip = train_step(batch_X, batch_M, batch_Y, True)
             # print("we reached this point")
             output, labels = output.numpy(), batch_Y.numpy()
             # labels = batch_Y.numpy()
@@ -118,7 +121,13 @@ def fit(epochs):
             #     if label_set[i] in top_5:
             #         count+=1
             # accuracy = (count/5)
-            
+            np.save(f"./results/output/input_{step}.npy", batch_clip.numpy())
+            np.save(f"./results/output/Z_{step}.npy",Z.numpy())
+            np.save(f"./results/output/Y_{step}.npy",Y.numpy())
+            np.save(f"./results/output/X_{step}.npy",X.numpy())
+            np.save(f"./results/output/D_out_{step}.npy",d_out.numpy())
+            if step>3:
+                break
 
 
             if step%1000==0:
@@ -141,13 +150,13 @@ def fit(epochs):
                     tf.summary.scalar('accuracy_top_5', accuracy, step=step)
                     # tf.summary.histogram('output', output)
                 
-                np_out = np.concatenate([np_out, output], axis=0)
-                # # print("np_out_shape:", np_out.shape)
-                Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
-                Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
-                X_out = np.concatenate([X_out, X.numpy()], axis=0)
-                label_out = np.concatenate([label_out, labels], axis=0)
-                dense_out = np.concatenate([dense_out, d_out.numpy()], axis=0)
+                # np_out = np.concatenate([np_out, output], axis=0)
+                # # # print("np_out_shape:", np_out.shape)
+                # Z_out = np.concatenate([Z_out, Z.numpy()], axis=0)
+                # Y_out = np.concatenate([Y_out, Y.numpy()], axis=0)
+                # X_out = np.concatenate([X_out, X.numpy()], axis=0)
+                # label_out = np.concatenate([label_out, labels], axis=0)
+                # dense_out = np.concatenate([dense_out, d_out.numpy()], axis=0)
 
                 # print("label_out:", label_out.shape)
                 
@@ -158,7 +167,7 @@ def fit(epochs):
         val_recall = []
         pbar_val = tqdm(total = len(val_list), desc =" val steps")
         for _, (batch_X, batch_M, batch_Y) in val_ds.batch(1).enumerate():
-            output, train_loss, train_recall, Z,Y,X,d_out  = train_step(batch_X, batch_M, batch_Y, False)
+            output, train_loss, train_recall, Z,Y,X,d_out,batch_clip  = train_step(batch_X, batch_M, batch_Y, False)
             # print("we reached this point")
             output, labels = output.numpy(), batch_Y.numpy()
             # print("output shape: ", output.shape)
@@ -189,14 +198,13 @@ def fit(epochs):
             tf.summary.scalar('accuracy_top_5', np.mean(val_accuracy), step=step)
         pbar_val.close()
         pbar_epoch.update(1)
-        if epoch%1==0:
-            np.save(f"./results/output/np_out_{epoch}.npy",np_out)
-            np.save(f"./results/output/Z_{epoch}.npy",Z_out)
-            np.save(f"./results/output/Y_{epoch}.npy",Y_out)
-            np.save(f"./results/output/X_{epoch}.npy",X_out)
-            np.save(f"./results/output/labels_{epoch}.npy",label_out)
-            np.save(f"./results/output/dense_{epoch}.npy",dense_out)
+        # if epoch%1==0:
+        #     np.save(f"./results/output/np_out_{epoch}.npy",np_out)
+        #     np.save(f"./results/output/Z_{epoch}.npy",Z_out)
+        #     np.save(f"./results/output/Y_{epoch}.npy",Y_out)
+        #     np.save(f"./results/output/X_{epoch}.npy",X_out)
+        #     np.save(f"./results/output/labels_{epoch}.npy",label_out)
+        #     np.save(f"./results/output/dense_{epoch}.npy",dense_out)
 #%%
 from tqdm import tqdm
 fit(100)
-# %%

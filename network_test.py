@@ -30,23 +30,13 @@ class Model:
 
     def res_net_block(self, input_data, filters, conv_size):
         if cfg.DILATION:
-            x = Conv3D(filters, conv_size, activation=tf.nn.leaky_relu, padding='same', dilation_rate=[2,2,2])(input_data)
-            x = BatchNormalization(momentum=0.95, center =True, scale =True, epsilon=0.005,
-                     beta_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.05), 
-                     gamma_initializer=tf.constant_initializer(0.9),
-                     moving_mean_initializer='zeros',
-                     moving_variance_initializer='ones',
-                     trainable=True)(x)
+            x = Conv3D(filters, conv_size, activation='relu', padding='same', dilation_rate=[2,2,2])(input_data)
+            x = BatchNormalization()(x)
             x = Conv3D(filters, conv_size, activation=None, padding='same', dilation_rate=[2,2,2])(x)
             
         else:
-            x = Conv3D(filters, conv_size, activation=tf.nn.leaky_relu, padding='same')(input_data)
-            x = BatchNormalization(momentum=0.95, center =True, scale =True, epsilon=0.005,
-                     beta_initializer=tf.random_normal_initializer(mean=0.0, stddev=0.05), 
-                     gamma_initializer=tf.constant_initializer(0.9),
-                     moving_mean_initializer='zeros',
-                     moving_variance_initializer='ones',
-                     trainable=True)(x)
+            x = Conv3D(filters, conv_size, activation='relu', padding='same')(input_data)
+            x = BatchNormalization()(x)
             x = Conv3D(filters, conv_size, activation=None, padding='same')(x)     
 
         # downsampling with stride 2
@@ -61,10 +51,10 @@ class Model:
 
     def resnet_3D_model(self,input_shape, net_name,  num_res_net_blocks = 5):
         inputs = Input(input_shape)
-        x = Conv3D(32, 3, activation=tf.nn.leaky_relu)(inputs) # 1st dimention of filter is for order of frames
+        x = Conv3D(32, 3, activation='relu')(inputs) # 1st dimention of filter is for order of frames
         x = MaxPooling3D((2,2,2))(x)
-        x = Conv3D(32, 3, activation=tf.nn.leaky_relu)(x) # 1st dimention of filter is for order of frames
-        # x = MaxPooling3D((2,2,2))(x)
+        x = Conv3D(32, 3, activation='relu')(x) # 1st dimention of filter is for order of frames
+        x = MaxPooling3D((2,2,2))(x)
 
         for _ in range(cfg.NUMBER_OF_RES_BLOCKS):
             x = self.res_net_block(x, 32, 3)

@@ -10,20 +10,20 @@ VIDEOS_DATASET_PATH = "/media/data4/Datasets/Kinetics_AVA/frames"
 
 ############################### SIAMMASK #####################################à
 SEGMENTS_DATASET_PATH = "/media/data4/Datasets/Kinetics_AVA/masks"
-ANNOTATION_PATH = "/media/data4/Datasets/Kinetics_AVA/kinetics_frames_masks_train_v1.0.json" # #ava_frames_bmasks_train_v2.2.json
-
+# ANNOTATION_PATH = "/media/data4/Datasets/Kinetics_AVA/kinetics_frames_masks_train_v1.0.json" # #ava_frames_bmasks_train_v2.2.json
+ANNOTATION_PATH =  "/media/data4/Datasets/Kinetics_AVA/ava_frames_masks_train_v2.2.json"
 # Input 
-NUM_FRAMES= 60
+NUM_FRAMES= 30
 WIDTH = 224
 HEIGHT = 224
-INPUT_SHAPE_Z= (NUM_FRAMES, WIDTH, HEIGHT, 3+1)
-INPUT_SHAPE_X= (WIDTH, HEIGHT, NUM_FRAMES, 3+1)
-INPUT_SHAPE_Y= (HEIGHT, NUM_FRAMES, WIDTH, 3+1)
+INPUT_SHAPE_Z= (NUM_FRAMES, WIDTH, HEIGHT, 3+3)
+INPUT_SHAPE_X= (WIDTH, HEIGHT, NUM_FRAMES, 3+3)
+INPUT_SHAPE_Y= (HEIGHT, NUM_FRAMES, WIDTH, 3+3)
 
 # Network 
 NUMBER_OF_RES_BLOCKS = 5
-CLASSIFIER = "With_Layer"
+CLASSIFIER = "Multi_FT02_CH6_Noise_5bl"
 
 DATASET_SIZE = 1000
-SPLIT_RATIO = 0.7
+SPLIT_RATIO = 0.9
 DILATION = False 
